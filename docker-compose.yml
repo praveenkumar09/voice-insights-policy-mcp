@@ -1,0 +1,32 @@
+# Existing-policies MCP server. Standalone: no database, no Azure keys.
+#   docker compose up -d --build
+# voice-insights-azureapi reaches it at http://voice-insights-policy-mcp:8085 over the shared network
+# (its POLICY_MCP_URL defaults to that), so start this BEFORE or alongside azureapi.
+networks:
+  cobalt-shared:
+    external: true
+
+services:
+  voice-insights-policy-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: voice_insights_policy_mcp
+    ports:
+      - "8085:8085"
+    networks:
+      - default
+      - cobalt-shared
+    environment:
+      # Dummy policy API is served by this app itself. To use the real one: set POLICY_API_DUMMY_ENABLED=false
+      # and POLICY_API_BASE_URL to the real service (it must honour POST /policies/search {"nric": "..."}).
+      POLICY_API_DUMMY_ENABLED: ${POLICY_API_DUMMY_ENABLED:-true}
+      POLICY_API_BASE_URL: ${POLICY_API_BASE_URL:-http://localhost:8085/dummy-api}
+      POLICY_API_TIMEOUT_MS: ${POLICY_API_TIMEOUT_MS:-3000}
+      JAVA_TOOL_OPTIONS: "-Xms128m -Xmx384m"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8085/actuator/health | grep -q UP || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
